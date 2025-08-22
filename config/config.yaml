@@ -1,0 +1,54 @@
+# ======= Data =======
+dataset_root: "./data/dataset/AudioWAV"  # set to your CREMA-D root (contains AudioWAV)
+audio_glob: "**/*.wav"
+# audio_glob: AudioWAV/*.wav
+selected_emotions: ["NEU", "HAP", "SAD", "ANG"]  # Neutral, Happy, Sad, Angry
+speaker_count: 20                # use only 20 speakers as required
+sample_rate: 16000               # Hz
+clip_seconds: 3                  # make all audio length equal
+
+# ======= Features =======
+feature_type: "mel"              # one of ["mel", "hubert"]
+mel:
+  n_fft: 1024
+  hop_length: 320                # 20 ms @ 16k
+  win_length: 640                # 40 ms @ 16k
+  n_mels: 64
+  f_min: 0
+  f_max: 8000
+  center: true
+hubert:
+  model_name: "facebook/hubert-base-ls960"
+  layer_pooling: "mean"          # ["mean", "cls"]
+
+# ======= Split =======
+val_size: 0.1
+test_size: 0.1
+random_seed: 42
+stratify_on: "label"             # stratify by emotion label
+
+# ======= Training =======
+batch_size: 128
+epochs: 20                       # you can lower to 5–20 per HW
+lr: 0.01
+optimizer: "adam"                # ["adam", "sgd"]
+weight_decay: 0.0
+num_workers: 4
+pin_memory: true
+
+# ======= Model =======
+mel_model:
+  type: "cnn"                    # small CNN over mel
+  num_classes: 4
+  channels: [32, 64, 128]
+  dropout: 0.2
+hubert_model:
+  type: "mlp"                    # MLP over pooled HuBERT emb (768)
+  num_classes: 4
+  hidden_dims: [256]
+  # dropout: 0.2
+
+# ======= Logging / Checkpoints =======
+log_dir: "./runs/hw_q1"
+ckpt_dir: "./models/saved_models"
+ckpt_name: "ser_${feature_type}.pt"
