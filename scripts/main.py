@@ -10,7 +10,7 @@ def main():
         cfg = yaml.safe_load(f)
 
     model, (dl_tr, dl_va, dl_te), history, ckpt_path = fit(cfg)
-    plot_history(history, outdir=cfg.get("log_dir", "./runs/hw_q1"), title=f"Training ({cfg['feature_type']})")
+    plot_history(history, outdir=cfg.get("log_dir", "./runs/ser"), title=f"Training ({cfg['feature_type']})")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     acc, cm, report = evaluate_test(model, dl_te, device)

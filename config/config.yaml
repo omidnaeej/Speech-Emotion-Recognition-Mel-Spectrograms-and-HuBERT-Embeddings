@@ -1,7 +1,6 @@
 # ======= Data =======
 dataset_root: "./data/dataset/AudioWAV"  # set to your CREMA-D root (contains AudioWAV)
-audio_glob: "**/*.wav"
-# audio_glob: AudioWAV/*.wav
+audio_glob: "*.wav"
 selected_emotions: ["NEU", "HAP", "SAD", "ANG"]  # Neutral, Happy, Sad, Angry
 speaker_count: 20                # use only 20 speakers as required
 sample_rate: 16000               # Hz
@@ -13,7 +12,7 @@ mel:
   n_fft: 1024
   hop_length: 320                # 20 ms @ 16k
   win_length: 640                # 40 ms @ 16k
-  n_mels: 64
+  n_mels: 128                    # Fixed: Match original request
   f_min: 0
   f_max: 8000
   center: true
@@ -45,10 +44,10 @@ mel_model:
 hubert_model:
   type: "mlp"                    # MLP over pooled HuBERT emb (768)
   num_classes: 4
-  hidden_dims: [256]
-  # dropout: 0.2
+  hidden_dims: [512, 128]        # Fixed: Two values for MLP
+  dropout: 0.2                   # Fixed: Uncommented
 
 # ======= Logging / Checkpoints =======
-log_dir: "./runs/hw_q1"
+log_dir: "./runs/ser"
 ckpt_dir: "./models/saved_models"
 ckpt_name: "ser_${feature_type}.pt"
