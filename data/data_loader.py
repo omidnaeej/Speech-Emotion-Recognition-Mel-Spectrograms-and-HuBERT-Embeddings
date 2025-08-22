@@ -108,8 +108,15 @@ FILENAME_RE = re.compile(r"^(?P<spk>\d{4})_.*_(?P<emo>[A-Z]{3})_.*\.wav$")
 
 def list_wavs(root: str, audio_glob: str) -> List[str]:
     wavs = sorted(glob(os.path.join(root, audio_glob), recursive=True))
-    print(f"{len(wavs)} wavs found.")
-    return wavs
+    valid_wavs = []
+    for wav in wavs:
+        wav = os.path.normpath(wav)  # Normalize path for Windows
+        if os.path.exists(wav):
+            valid_wavs.append(wav)
+        else:
+            print(f"Warning: File not found: {wav}")
+    print(f"{len(valid_wavs)} valid wavs found out of {len(wavs)}.")
+    return valid_wavs
 
 def parse_filename(path: str):
     name = os.path.basename(path)
@@ -119,7 +126,7 @@ def parse_filename(path: str):
         return None
     spk = m.group("spk")
     emo = m.group("emo")
-    print(f"Parsed {name} -> spk={spk}, emo={emo}")
+    # print(f"Parsed {name} -> spk={spk}, emo={emo}")
     return spk, emo
 
 class CremadSER(Dataset):
@@ -137,7 +144,12 @@ class CremadSER(Dataset):
         return len(self.wavs)
 
     def _load(self, path: str) -> torch.Tensor:
-        wav, sr = torchaudio.load(path)
+        path = os.path.normpath(path)  # Normalize path for Windows
+        try:
+            wav, sr = torchaudio.load(path)
+        except Exception as e:
+            print(f"Error loading {path}: {str(e)}")
+            raise
         if sr != self.sr:
             wav = torchaudio.functional.resample(wav, sr, self.sr)
         wav = torch.mean(wav, dim=0, keepdim=True)  # mono [1, T]
@@ -168,6 +180,18 @@ def stratified_split(paths: List[str], labels: List[int], val_size: float, test_
     X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=val_size/(1-test_size), random_state=seed, stratify=y_train)
     return list(X_train), list(y_train), list(X_val), list(y_val), list(X_test), list(y_test)
 
+def collate_mel(batch):
+    xs, ys = zip(*batch)
+    xs = torch.stack(xs)  # [B, n_mels, T]
+    ys = torch.tensor(ys, dtype=torch.long)
+    return xs, ys
+
+def collate_hubert(batch):
+    xs, ys = zip(*batch)
+    xs = torch.stack(xs)  # [B, 768]
+    ys = torch.tensor(ys, dtype=torch.long)
+    return xs, ys
+
 def build_dataloaders(cfg: dict):
     data_root = os.path.dirname(cfg["dataset_root"])
     ensure_cremad(data_root)
@@ -192,16 +216,6 @@ def build_dataloaders(cfg: dict):
     ds_tr = CremadSER(X_tr, cfg, feature_type=cfg["feature_type"])
     ds_va = CremadSER(X_va, cfg, feature_type=cfg["feature_type"])
     ds_te = CremadSER(X_te, cfg, feature_type=cfg["feature_type"])
-    def collate_mel(batch):
-        xs, ys = zip(*batch)
-        xs = torch.stack(xs)  # [B, n_mels, T]
-        ys = torch.tensor(ys, dtype=torch.long)
-        return xs, ys
-    def collate_hubert(batch):
-        xs, ys = zip(*batch)
-        xs = torch.stack(xs)  # [B, 768]
-        ys = torch.tensor(ys, dtype=torch.long)
-        return xs, ys
     is_mel = cfg["feature_type"] == "mel"
     collate_fn = collate_mel if is_mel else collate_hubert
     dl_tr = DataLoader(ds_tr, batch_size=cfg["batch_size"], shuffle=True, num_workers=cfg["num_workers"], pin_memory=cfg["pin_memory"], collate_fn=collate_fn)

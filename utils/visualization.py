@@ -1,7 +1,8 @@
 import os
 from typing import Dict, List
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive Agg backend
 import matplotlib.pyplot as plt
-
 
 def plot_history(history: Dict[str, List[float]], outdir: str, title: str = "Training"):
     os.makedirs(outdir, exist_ok=True)
@@ -17,4 +18,3 @@ def plot_history(history: Dict[str, List[float]], outdir: str, title: str = "Tra
     plt.plot(history["val_loss"], label="val")
     plt.xlabel("epoch"); plt.ylabel("loss"); plt.title(f"{title} — Loss"); plt.legend()
     plt.tight_layout(); plt.savefig(os.path.join(outdir, "loss.png")); plt.close()
-    

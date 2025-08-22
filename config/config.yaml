@@ -32,8 +32,8 @@ epochs: 20                       # you can lower to 5–20 per HW
 lr: 0.01
 optimizer: "adam"                # ["adam", "sgd"]
 weight_decay: 0.0
-num_workers: 4
-pin_memory: true
+num_workers: 0
+pin_memory: false
 
 # ======= Model =======
 mel_model:
