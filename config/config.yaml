@@ -29,7 +29,7 @@ stratify_on: "label"             # stratify by emotion label
 # ======= Training =======
 batch_size: 128
 epochs: 20                       # you can lower to 5–20 per HW
-lr: 0.01
+lr: 0.001
 optimizer: "adam"                # ["adam", "sgd"]
 weight_decay: 0.0
 num_workers: 0
