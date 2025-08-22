@@ -1,81 +1,72 @@
-import os
 import torch
 import torch.nn as nn
-from torch.optim import Adam, SGD
+from torch.utils.data import DataLoader
 from tqdm import tqdm
+import numpy as np
+import os
 
 from models.model import build_model
-from data.data_loader import build_dataloaders
-from utils.metrics import accuracy
+from utils.metrics import compute_metrics
+from data.data_loader import collate_mel, collate_hubert, build_dataloaders
 
-
-def get_optimizer(name, params, lr, weight_decay=0.0):
-    name = name.lower()
-    if name == "adam":
-        return Adam(params, lr=lr, weight_decay=weight_decay)
-    elif name == "sgd":
-        return SGD(params, lr=lr, momentum=0.9, weight_decay=weight_decay)
-    else:
-        raise ValueError(f"Unknown optimizer {name}")
-
-
-def train_one_epoch(model, dl, device, criterion, optimizer):
+def train_one_epoch(model: nn.Module, dl: DataLoader, device: torch.device, criterion, opt):
     model.train()
-    running_loss, running_acc, n = 0.0, 0.0, 0
-    for x, y in tqdm(dl, desc="train", leave=False):
+    total_loss, all_preds, all_labels = 0.0, [], []
+    for x, y in tqdm(dl, desc="train", leave=True):
         x, y = x.to(device), y.to(device)
-        optimizer.zero_grad()
+        opt.zero_grad()
         logits = model(x)
         loss = criterion(logits, y)
         loss.backward()
-        optimizer.step()
-        with torch.no_grad():
-            running_loss += loss.item() * y.size(0)
-            running_acc  += accuracy(logits, y) * y.size(0)
-            n += y.size(0)
-    return running_loss / n, running_acc / n
+        opt.step()
+        total_loss += loss.item()
+        preds = torch.argmax(logits, dim=1)
+        all_preds.append(preds.cpu().numpy())
+        all_labels.append(y.cpu().numpy())
+    all_preds = np.concatenate(all_preds)
+    all_labels = np.concatenate(all_labels)
+    acc = np.mean(all_preds == all_labels)
+    return total_loss / len(dl), acc
 
-
-def evaluate(model, dl, device, criterion):
+def eval_one_epoch(model: nn.Module, dl: DataLoader, device: torch.device, criterion):
     model.eval()
-    running_loss, running_acc, n = 0.0, 0.0, 0
+    total_loss, all_preds, all_labels = 0.0, [], []
     with torch.no_grad():
-        for x, y in tqdm(dl, desc="eval", leave=False):
+        for x, y in tqdm(dl, desc="eval", leave=True):
             x, y = x.to(device), y.to(device)
             logits = model(x)
             loss = criterion(logits, y)
-            running_loss += loss.item() * y.size(0)
-            running_acc  += accuracy(logits, y) * y.size(0)
-            n += y.size(0)
-    return running_loss / n, running_acc / n
-
+            total_loss += loss.item()
+            preds = torch.argmax(logits, dim=1)
+            all_preds.append(preds.cpu().numpy())
+            all_labels.append(y.cpu().numpy())
+    all_preds = np.concatenate(all_preds)
+    all_labels = np.concatenate(all_labels)
+    acc = np.mean(all_preds == all_labels)
+    return total_loss / len(dl), acc
 
 def fit(cfg: dict):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = build_model(cfg)
+    model = model.to(device)
     dl_tr, dl_va, dl_te = build_dataloaders(cfg)
-
-    model = build_model(cfg["feature_type"], cfg)
-    model.to(device)
     criterion = nn.CrossEntropyLoss()
-    opt = get_optimizer(cfg["optimizer"], model.parameters(), lr=cfg["lr"], weight_decay=cfg.get("weight_decay", 0.0))
-
-    best_val = 0.0
-    ckpt_path = os.path.join(cfg["ckpt_dir"], cfg["ckpt_name"].replace("${feature_type}", cfg["feature_type"]))
-    os.makedirs(os.path.dirname(ckpt_path), exist_ok=True)
-
+    opt = torch.optim.Adam(model.parameters(), lr=cfg["lr"], weight_decay=cfg["weight_decay"]) if cfg["optimizer"] == "adam" else torch.optim.SGD(model.parameters(), lr=cfg["lr"], weight_decay=cfg["weight_decay"])
     history = {"train_loss": [], "train_acc": [], "val_loss": [], "val_acc": []}
-
-    for epoch in range(1, cfg["epochs"] + 1):
+    ckpt_dir = cfg["ckpt_dir"]
+    ckpt_path = f"{ckpt_dir}/{cfg['ckpt_name'].replace('${feature_type}', cfg['feature_type'])}"
+    os.makedirs(ckpt_dir, exist_ok=True)
+    best_val_acc = -float("inf")
+    for epoch in range(cfg["epochs"]):
         tr_loss, tr_acc = train_one_epoch(model, dl_tr, device, criterion, opt)
-        va_loss, va_acc = evaluate(model, dl_va, device, criterion)
+        val_loss, val_acc = eval_one_epoch(model, dl_va, device, criterion)
         history["train_loss"].append(tr_loss)
         history["train_acc"].append(tr_acc)
-        history["val_loss"].append(va_loss)
-        history["val_acc"].append(va_acc)
-        print(f"Epoch {epoch:02d}: train_loss={tr_loss:.4f} acc={tr_acc:.4f} | val_loss={va_loss:.4f} acc={va_acc:.4f}")
-        if va_acc > best_val:
-            best_val = va_acc
-            torch.save({"model": model.state_dict(), "cfg": cfg}, ckpt_path)
-            print(f"Saved best model to {ckpt_path}")
-
+        history["val_loss"].append(val_loss)
+        history["val_acc"].append(val_acc)
+        print(f"Epoch {epoch+1:02d}: train_loss={tr_loss:.4f} acc={tr_acc:.4f} | val_loss={val_loss:.4f} acc={val_acc:.4f}")
+        if val_acc > best_val_acc:
+            best_val_acc = val_acc
+            torch.save(model.state_dict(), ckpt_path)
+            print(f"✅ Saved best model to {ckpt_path}")
     return model, (dl_tr, dl_va, dl_te), history, ckpt_path

@@ -110,7 +110,7 @@ def list_wavs(root: str, audio_glob: str) -> List[str]:
     wavs = sorted(glob(os.path.join(root, audio_glob), recursive=True))
     valid_wavs = []
     for wav in wavs:
-        wav = os.path.normpath(wav)  # Normalize path for Windows
+        wav = os.path.normpath(wav)
         if os.path.exists(wav):
             valid_wavs.append(wav)
         else:
@@ -144,7 +144,7 @@ class CremadSER(Dataset):
         return len(self.wavs)
 
     def _load(self, path: str) -> torch.Tensor:
-        path = os.path.normpath(path)  # Normalize path for Windows
+        path = os.path.normpath(path)
         try:
             wav, sr = torchaudio.load(path)
         except Exception as e:
@@ -167,9 +167,9 @@ class CremadSER(Dataset):
         label = EMO_MAP[emo_code]
         x = self._load(path)
         if self.feature_type == "mel":
-            feat = extract_mel_log_db(x, self.sr, self.cfg["mel"])  # [n_mels, time]
+            feat = extract_mel_log_db(x, self.sr, self.cfg["mel"])
         else:
-            feat = extract_hubert(x.numpy(), self.sr, self.cfg["hubert"])  # [768]
+            feat = extract_hubert(x.numpy(), self.sr, self.cfg["hubert"])
         return feat, label
 
 def stratified_split(paths: List[str], labels: List[int], val_size: float, test_size: float, seed: int):
@@ -182,13 +182,13 @@ def stratified_split(paths: List[str], labels: List[int], val_size: float, test_
 
 def collate_mel(batch):
     xs, ys = zip(*batch)
-    xs = torch.stack(xs)  # [B, n_mels, T]
+    xs = torch.stack(xs)
     ys = torch.tensor(ys, dtype=torch.long)
     return xs, ys
 
 def collate_hubert(batch):
     xs, ys = zip(*batch)
-    xs = torch.stack(xs)  # [B, 768]
+    xs = torch.stack(xs)
     ys = torch.tensor(ys, dtype=torch.long)
     return xs, ys
 
