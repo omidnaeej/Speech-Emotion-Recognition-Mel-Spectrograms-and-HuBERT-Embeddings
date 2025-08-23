@@ -1,22 +1,21 @@
 import torch
-
-def accuracy(logits: torch.Tensor, y: torch.Tensor) -> float:
-    return (logits.argmax(dim=1) == y).float().mean().item()
-
 import numpy as np
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 import seaborn as sns
 import matplotlib.pyplot as plt
 import os
 
+def accuracy(logits: torch.Tensor, y: torch.Tensor) -> float:
+    return (logits.argmax(dim=1) == y).float().mean().item()
+
 def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray, outdir: str = None):
     acc = accuracy_score(y_true, y_pred)
     cm = confusion_matrix(y_true, y_pred)
     report = classification_report_dict(y_true, y_pred)
-    
+
     if outdir:
         plot_confusion_matrix(cm, outdir, labels=["NEU", "HAP", "SAD", "ANG"])
-    
+
     return {
         "accuracy": acc,
         "confusion_matrix": cm,

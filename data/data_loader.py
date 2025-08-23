@@ -9,7 +9,7 @@ import torchaudio
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 
-from utils.features import extract_mel_log_db, extract_hubert
+# from utils.features import extract_mel_log_db, extract_hubert
 
 import sys
 import zipfile
@@ -139,6 +139,11 @@ class CremadSER(Dataset):
         self.feature_type = feature_type
         self.sr = cfg["sample_rate"]
         self.clip_len = int(cfg["clip_seconds"] * self.sr)
+        if self.feature_type == "hubert":
+            from transformers import Wav2Vec2FeatureExtractor, HubertModel
+            self.hubert_extractor = Wav2Vec2FeatureExtractor.from_pretrained(cfg["hubert"].get("model_name", "facebook/hubert-base-ls960"))
+            self.hubert_model = HubertModel.from_pretrained(cfg["hubert"].get("model_name", "facebook/hubert-base-ls960"))
+            self.hubert_model.eval()
 
     def __len__(self):
         return len(self.wavs)
@@ -161,15 +166,45 @@ class CremadSER(Dataset):
             wav = wav[:, :self.clip_len]
         return wav.squeeze(0)  # [T]
 
+    def _extract_mel_log_db(self, wav: torch.Tensor, sr: int, mcfg: Dict) -> torch.Tensor:
+        """wav: [T] float32 in [-1,1]; returns [n_mels, time] log-mel (dB)."""
+        mel_spec = torchaudio.transforms.MelSpectrogram(
+            sample_rate=sr,
+            n_fft=mcfg.get("n_fft", 1024),
+            hop_length=mcfg.get("hop_length", 320),
+            win_length=mcfg.get("win_length", 640),
+            f_min=mcfg.get("f_min", 0.0),
+            f_max=mcfg.get("f_max", sr//2),
+            n_mels=mcfg.get("n_mels", 64),
+            center=mcfg.get("center", True),
+            power=2.0,
+            norm=None,
+            mel_scale="htk",
+        )(wav)
+        log_mel = torchaudio.transforms.AmplitudeToDB(stype="power")(mel_spec)
+        return log_mel  # [n_mels, time]
+
+    def _extract_hubert(self, wav_np, sr: int, hcfg: Dict) -> torch.Tensor:
+        with torch.inference_mode():
+            inputs = self.hubert_extractor(wav_np, sampling_rate=sr, return_tensors="pt")
+            out = self.hubert_model(**inputs)
+            hidden = out.last_hidden_state  # [1, T, 768]
+            if hcfg.get("layer_pooling", "mean") == "cls":
+                feat = hidden[:, 0, :]
+            else:
+                feat = hidden.mean(dim=1)  # [1, 768]
+        return feat.squeeze(0)  # [768]
+
+
     def __getitem__(self, idx):
         path = self.wavs[idx]
         spk, emo_code = parse_filename(path)
         label = EMO_MAP[emo_code]
         x = self._load(path)
         if self.feature_type == "mel":
-            feat = extract_mel_log_db(x, self.sr, self.cfg["mel"])
+            feat = self._extract_mel_log_db(x, self.sr, self.cfg["mel"])
         else:
-            feat = extract_hubert(x.numpy(), self.sr, self.cfg["hubert"])
+            feat = self._extract_hubert(x.numpy(), self.sr, self.cfg["hubert"])
         return feat, label
 
 def stratified_split(paths: List[str], labels: List[int], val_size: float, test_size: float, seed: int):

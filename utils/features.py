@@ -24,26 +24,26 @@ def extract_mel_log_db(wav: torch.Tensor, sr: int, mcfg: Dict) -> torch.Tensor:
 
 # ===== HuBERT embeddings (pooled) =====
 
-def extract_hubert(wav_np, sr: int, hcfg: Dict) -> torch.Tensor:
-    from transformers import Wav2Vec2FeatureExtractor, HubertModel
-    import numpy as np
+# def extract_hubert(wav_np, sr: int, hcfg: Dict) -> torch.Tensor:
+#     from transformers import Wav2Vec2FeatureExtractor, HubertModel
+#     import numpy as np
 
-    if sr != 16000:
-        # Expect 16k — resample using torchaudio for consistency
-        wav_t = torch.tensor(wav_np, dtype=torch.float32)
-        wav_t = torchaudio.functional.resample(wav_t, sr, 16000)
-        wav_np = wav_t.numpy()
-        sr = 16000
+#     if sr != 16000:
+#         # Expect 16k — resample using torchaudio for consistency
+#         wav_t = torch.tensor(wav_np, dtype=torch.float32)
+#         wav_t = torchaudio.functional.resample(wav_t, sr, 16000)
+#         wav_np = wav_t.numpy()
+#         sr = 16000
 
-    extractor = Wav2Vec2FeatureExtractor.from_pretrained(hcfg.get("model_name", "facebook/hubert-base-ls960"))
-    model = HubertModel.from_pretrained(hcfg.get("model_name", "facebook/hubert-base-ls960"))
-    model.eval()
-    with torch.inference_mode():
-        inputs = extractor(wav_np, sampling_rate=sr, return_tensors="pt")
-        out = model(**inputs)
-        hidden = out.last_hidden_state  # [1, T, 768]
-        if hcfg.get("layer_pooling", "mean") == "cls":
-            feat = hidden[:, 0, :]
-        else:
-            feat = hidden.mean(dim=1)  # [1, 768]
-    return feat.squeeze(0)  # [768]
+#     extractor = Wav2Vec2FeatureExtractor.from_pretrained(hcfg.get("model_name", "facebook/hubert-base-ls960"))
+#     model = HubertModel.from_pretrained(hcfg.get("model_name", "facebook/hubert-base-ls960"))
+#     model.eval()
+#     with torch.inference_mode():
+#         inputs = extractor(wav_np, sampling_rate=sr, return_tensors="pt")
+#         out = model(**inputs)
+#         hidden = out.last_hidden_state  # [1, T, 768]
+#         if hcfg.get("layer_pooling", "mean") == "cls":
+#             feat = hidden[:, 0, :]
+#         else:
+#             feat = hidden.mean(dim=1)  # [1, 768]
+#     return feat.squeeze(0)  # [768]
