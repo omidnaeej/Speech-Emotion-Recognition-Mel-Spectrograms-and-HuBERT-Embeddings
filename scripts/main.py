@@ -14,7 +14,7 @@ def main():
     with open("./config/config.yaml", "r") as f:
         cfg = yaml.safe_load(f)
     model, (dl_tr, dl_va, dl_te), history, ckpt_path = fit(cfg)
-    plot_history(history, outdir=cfg.get("log_dir", "./runs/ser"), title=f"Training ({cfg['feature_type']})")
+    plot_history(history, outdir=cfg['log_dir'].replace('${feature_type}', cfg['feature_type']), title=f"Training ({cfg['feature_type']})")
     model.load_state_dict(torch.load(ckpt_path))
     model.eval()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -29,7 +29,7 @@ def main():
             all_labels.append(y.cpu().numpy())
     all_preds = np.concatenate(all_preds)
     all_labels = np.concatenate(all_labels)
-    metrics = compute_metrics(all_labels, all_preds, outdir=cfg.get("log_dir", "./runs/ser"))
+    metrics = compute_metrics(all_labels, all_preds, outdir=cfg['log_dir'].replace('${feature_type}', cfg['feature_type']))
     print(f"Test accuracy: {metrics['accuracy']}")
     print("Confusion Matrix:\n", metrics["confusion_matrix"])
     print("Classification Report:\n", yaml.dump(metrics["classification_report"], default_flow_style=False))
