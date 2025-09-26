@@ -65,9 +65,9 @@ Emotion detection in speech is a challenging problem. Traditional acoustic featu
 │   └── evaluate.py
 │   └── extract_features.py
 ├── utils/
-│   └── helpers.py
-│   └── datasets.py
+│   └── features.py
 │   └── metrics.py
+│   └── visualization.py
 ├── README.md
 ├── requirements.txt
 └── .gitignore
@@ -202,30 +202,4 @@ You can include a summary table in this README or link to a results file.
 * **Hyperparameter tuning**: wrap with grid search, Optuna, etc.
 * **Deployment / inference**: wrap into a REST API or streaming inference service
 
----
 
-## Citations & References
-
-If you base your work on prior models or datasets, please cite:
-
-* The **CREMA-D** dataset paper
-* The HuBERT model paper
-* Any additional architectures or techniques used
-
-For example:
-
-> * “HuBERT: Self-Supervised Speech Representation Learning by Masked Prediction of Hidden Units”
-> * *CREMA-D: Crowd-sourced Emotional Mutimodal Actors Dataset*
-
----
-
-## License
-
-*(Specify a license here — e.g. MIT, Apache 2.0, etc.)*
-
----
-
-## Acknowledgements
-
-* Thanks to the creators of CREMA-D for making the dataset available
-* Inspiration from existing SER research combining acoustic and self-supervised features
