@@ -1,205 +1,136 @@
 # Speech Emotion Recognition using Log-Mel Spectrograms & HuBERT Embeddings
 
-This repository implements a pipeline for **speech emotion recognition (SER)** on the **CREMA-D** dataset using two complementary feature types:
-
-1. **Log-Mel spectrograms** (handcrafted / acoustic features)  
-2. **HuBERT embeddings** (self-supervised representations from a pretrained transformer model)
-
-It includes training, evaluation, result plotting (e.g. confusion matrices), and utilities.
+This repository implements Speech Emotion Recognition (SER) using **log-Mel spectrograms** and **HuBERT embeddings** on the **CREMA-D** dataset. It includes data loading, feature extraction, compact models for both feature types, training/evaluation scripts, and result visualizations (accuracy, loss, confusion matrix). ([GitHub][1])
 
 ---
 
-## 📋 Table of Contents
+## Repository Contents
 
-- [Motivation](#motivation)  
-- [Features & Highlights](#features--highlights)  
-- [Repository Structure](#repository-structure)  
-- [Setup & Requirements](#setup--requirements)  
-- [Usage](#usage)  
-  - [Data Preparation](#data-preparation)  
-  - [Training](#training)  
-  - [Evaluation & Inference](#evaluation--inference)  
-  - [Visualization & Analysis](#visualization--analysis)  
-- [Configuration](#configuration)  
-- [Results & Metrics](#results--metrics)  
-- [Extending / Customizing](#extending--customizing)  
-- [Citations & References](#citations--references)  
-- [License](#license)
+* `config/` – YAML configs for data, features, training and logging (e.g., `config.yaml`, `logging.yaml`). 
+* `data/` – Dataset utilities (e.g., `data_loader.py` with `CremadSER` and helpers).
+* `models/` – Model definitions & saved checkpoints (e.g., `model.py`, `models/saved_models/ser_mel.pt`, `ser_hubert.pt`).
+* `runs/` – Training logs and plots (`acc.png`, `loss.png`, `cm.png`) for Mel and HuBERT experiments. 
+* `scripts/` – Entry points (`main.py`) and helpers (`train.py`, `evaluate.py`). 
+* `utils/` – Feature extraction (`features.py`), metrics, and visualization utilities. 
+* `requirements.txt`, `README.md`, `.gitignore`.
 
 ---
 
-## Motivation
+## Project Overview
 
-Emotion detection in speech is a challenging problem. Traditional acoustic features (e.g. spectrograms, MFCCs) capture low-level information, while modern self-supervised models like HuBERT can extract richer, semantically meaningful representations. This repository explores combining both and evaluating their individual and fused performance.
+#### 1) Data Preparation
+
+* Target dataset: **CREMA-D**; files reside under `AudioWAV/`. Set `dataset_root` to the folder that **contains** `AudioWAV`. Example default: `./data/dataset/AudioWAV`.
+* Emotions used: **NEU, HAP, SAD, ANG** (mapped to 0–3). Fixed sample rate **16 kHz** and clips **3 s**
+* The data loader normalizes mono audio, resamples if needed, trims/pads to fixed length, and yields either Mel or HuBERT features depending on config. 
+
+#### 2) Feature Extraction
+
+* **Log-Mel**: Configurable STFT params; default `n_mels: 64`, `n_fft: 1024`, `hop_length: 320`, `win_length: 640`, `f_max: 8000`. 
+* **HuBERT**: Uses `facebook/hubert-base-ls960`; embeddings pooled by `mean` (configurable).
+* The loader calls `utils.features.extract_mel_log_db` and `extract_hubert` under the hood. 
+
+#### 3) Model Architecture
+
+* **Mel branch**: small **CNN** classifier; default channels `[32, 64, 128]`, dropout `0.2`, `num_classes: 4`.
+* **HuBERT branch**: **MLP** over pooled 768-d HuBERT embeddings; default `hidden_dims: [256]`, `num_classes: 4`. (A later config also experimented with `[512, 128]`.) 
+
+#### 4) Training & Evaluation
+
+* Default split: `val_size: 0.1`, `test_size: 0.1`, `random_seed: 42`.
+* Typical training hyper-params: `batch_size: 128`, `epochs: 20`, `optimizer: adam`, `lr: 0.01`. (Experiments with `lr=0.001` are noted in commit history.) 
+* Checkpoints saved as `models/saved_models/ser_${feature_type}.pt`; logs/plots under `runs/ser_${feature_type}`.
 
 ---
 
-## Features & Highlights
+## Setup
 
-- Support for **log-Mel spectrograms** and **HuBERT embeddings**  
-- Training and evaluation scripts  
-- Automatic generation of confusion matrices and plots  
-- Modular utilities for loading, preprocessing, feature extraction  
-- Configurable via YAML or argument options  
-- Use of **CREMA-D** dataset (requires appropriate licensing / download)  
-- Clear separation between feature types and fusion experiments  
+Clone:
 
----
-
-## Repository Structure
-
+```bash
+git clone https://github.com/omidnaeej/Speech-Emotion-Recognition-Mel-Spectrograms-and-HuBERT-Embeddings.git
+cd Speech-Emotion-Recognition-Mel-Spectrograms-and-HuBERT-Embeddings
 ```
 
-.
-├── config/
-│   └── *.yaml         ← Configuration files for experiments
-├── data/
-│   └── (raw / processed data)
-├── models/
-│   └── (saved model weights)
-├── runs/
-│   └── (logs, tensorboard, outputs)
-├── scripts/
-│   └── data_preprocess.py
-│   └── train.py
-│   └── evaluate.py
-│   └── extract_features.py
-├── utils/
-│   └── features.py
-│   └── metrics.py
-│   └── visualization.py
-├── README.md
-├── requirements.txt
-└── .gitignore
+Install dependencies:
 
-````
-
-- **config/**: YAML or JSON configs specifying hyperparameters  
-- **data/**: holds raw or processed audio / features  
-- **models/**: stores trained model files  
-- **runs/**: outputs, logs, plots, evaluation results  
-- **scripts/**: main entry-point scripts (preprocessing, training, evaluation)  
-- **utils/**: helper modules for data loading, metrics, etc.
+```bash
+pip install -r requirements.txt
+# or
+pip install torch torchaudio transformers scikit-learn matplotlib pyyaml tqdm
+```
 
 ---
 
-## Setup & Requirements
+## Download the dataset
 
-1. Clone the repository:
-
-   ```bash
-   git clone https://github.com/omidnaeej/Speech-Emotion-Recognition-Mel-Spectrograms-and-HuBERT-Embeddings.git
-   cd Speech-Emotion-Recognition-Mel-Spectrograms-and-HuBERT-Embeddings
-   ```
-
-2. Create a Python virtual environment (optional but recommended):
-
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate      # on Linux / macOS
-   venv\Scripts\activate         # on Windows
-   ```
-
-3. Install dependencies:
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-   The repository’s README currently lists:
-
-   ```
-   torch torchaudio transformers scikit-learn matplotlib pyyaml tqdm
-   ```
-
-   (These are minimal; your particular config files may require additional packages.)
+1. Obtain **CREMA-D** (you’ll need access approval) and place/extract it so that the audio files live in `.../AudioWAV/*.wav`. The default config expects `./data/dataset/AudioWAV`. 
+2. Update `config/config.yaml` → `dataset_root` if you put it elsewhere. 
 
 ---
 
 ## Usage
 
-### Data Preparation
-
-* Download and organize the **CREMA-D** dataset (or your dataset of choice) in `data/`.
-* Use `scripts/data_preprocess.py` to:
-
-  * Load raw audio files
-  * Compute and save log-Mel spectrograms
-  * Optionally extract and cache HuBERT embeddings (via a pretrained model)
-
-Example:
-
 ```bash
-python scripts/data_preprocess.py \
-  --input_dir data/raw_audio \
-  --output_dir data/processed \
-  --config config/preprocess.yaml
+python -m scripts.main
 ```
 
-### Training
+This reads `config/config.yaml`, builds the selected feature pipeline (`feature_type: "mel"` or `"hubert"`), trains, evaluates, and writes plots/checkpoints. 
 
-* Train a model using either spectrograms, HuBERT embeddings, or fused features:
+Alternative script entry points (present in `scripts/`):
 
-```bash
-python scripts/train.py \
-  --config config/train_mel.yaml
-```
+* `scripts/train.py` – training logic
+* `scripts/evaluate.py` – evaluation & plotting
 
-* For experiments combining features, adjust the config accordingly (e.g. feature fusion, model architecture).
-
-### Evaluation & Inference
-
-* Evaluate on a held-out test split:
-
-```bash
-python scripts/evaluate.py \
-  --model_path models/best_model.pth \
-  --config config/evaluate.yaml
-```
-
-* Optionally run inference on new audio files by adapting the evaluate or inference scripts.
-
-### Visualization & Analysis
-
-* After evaluation, confusion matrices, per-class metrics, and plots are generated and saved to `runs/...`
-* You can inspect the logs, plot additional curves (e.g. ROC, precision-recall), etc.
+> Use `config/config.yaml` to switch features and hyper-parameters (see next section).
 
 ---
 
 ## Configuration
 
-Each YAML config (e.g. in `config/`) should typically contain:
+Edit **`config/config.yaml`** to control the run:
 
-* Dataset paths
-* Feature type (e.g. `mel`, `hubert`, `fusion`)
-* Model hyperparameters (learning rate, epochs, batch size, architecture)
-* Loss and metric settings
-* Paths for output, logging, saving models
+* **Data**
 
-By decoupling logic from configuration, you can easily run different experiments without changing code.
+  * `dataset_root`: path to folder containing `AudioWAV`
+  * `selected_emotions`: `["NEU","HAP","SAD","ANG"]`
+  * `sample_rate`: `16000`, `clip_seconds`: `3`
+* **Features**
+
+  * `feature_type`: `"mel"` or `"hubert"`
+  * `mel`: `n_fft`, `hop_length`, `win_length`, `n_mels`, `f_max`, ...
+  * `hubert`: `model_name` (default `"facebook/hubert-base-ls960"`), `layer_pooling` (`"mean"`/`"cls"`)
+* **Split**
+
+  * `val_size`, `test_size`, `random_seed`, `stratify_on`
+* **Training**
+
+  * `batch_size`, `epochs`, `lr`, `optimizer`, `weight_decay`, `num_workers`, `pin_memory`
+* **Model**
+
+  * `mel_model`: `type: "cnn"`, `channels`, `dropout`, `num_classes`
+  * `hubert_model`: `type: "mlp"`, `hidden_dims`, `num_classes`
+* **Logging / Checkpoints**
+
+  * `log_dir`: e.g., `./runs/ser_${feature_type}`
+  * `ckpt_dir`, `ckpt_name`: e.g., `ser_${feature_type}.pt`
 
 ---
 
-## Results & Metrics
+## Results
 
-* For each experiment you can log / compute:
+After training, you should see:
 
-  * Accuracy, precision, recall, F1-score (overall & per-class)
-  * Confusion matrix
-  * Loss curves over epochs
-  * Comparative performance of spectrogram-only vs HuBERT-only vs fused
-
-You can include a summary table in this README or link to a results file.
+* **Plots** under `runs/ser_mel` or `runs/ser_hubert`: `acc.png`, `loss.png`, `cm.png` (confusion matrix). 
+* **Checkpoints** saved to `models/saved_models/ser_mel.pt` and `ser_hubert.pt` (depending on the run).
 
 ---
 
-## Extending / Customizing
+## Contributing
 
-* **Add new datasets**: adapt `utils/datasets.py` and preprocessing to support new audio-emotion corpora
-* **Change model architectures**: plug in transformers, CNNs, LSTMs, attention layers
-* **Fusion techniques**: experiment with concatenation, attention-based fusion, gating
-* **Feature extraction**: incorporate other embeddings (e.g. Wav2Vec, CPC, etc.)
-* **Hyperparameter tuning**: wrap with grid search, Optuna, etc.
-* **Deployment / inference**: wrap into a REST API or streaming inference service
+Issues and PRs are welcome. Please keep configs, scripts, and utils consistent with the current structure and logging/checkpoint conventions.
 
 
+[4]: https://pmc.ncbi.nlm.nih.gov/articles/PMC4313618/?utm_source=chatgpt.com "CREMA-D: Crowd-sourced Emotional Multimodal Actors ..."
+
+ 
