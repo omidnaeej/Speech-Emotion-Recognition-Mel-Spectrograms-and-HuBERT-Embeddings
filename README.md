@@ -51,7 +51,6 @@ Emotion detection in speech is a challenging problem. Traditional acoustic featu
 ```
 
 .
-├── .vscode/
 ├── config/
 │   └── *.yaml         ← Configuration files for experiments
 ├── data/
